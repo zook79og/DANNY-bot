@@ -1,0 +1,64 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user information and MT5 credentials (encrypted).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "mt5Login": { "type": "string" },
+        "mt5Server": { "type": "string" },
+        "mt5PasswordEncrypted": { "type": "string" },
+        "balance": { "type": "number", "description": "Current HFM account balance" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "BotSettings": {
+      "title": "Bot Settings",
+      "description": "Configuration for the trading bot per user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "strategy": { "type": "string", "enum": ["XAUUSD AI Scalper v2.0", "EURUSD Trend Follower", "Aggressive News Trader"] },
+        "riskPercentage": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "isActive", "strategy", "riskPercentage"]
+    },
+    "Trade": {
+      "title": "Trade Record",
+      "description": "Historical and active trade records.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "symbol": { "type": "string" },
+        "type": { "type": "string", "enum": ["BUY", "SELL"] },
+        "volume": { "type": "number" },
+        "openPrice": { "type": "number" },
+        "closePrice": { "type": "number" },
+        "profit": { "type": "number" },
+        "status": { "type": "string", "enum": ["OPEN", "CLOSED"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "symbol", "type", "volume", "openPrice", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "UserProfile",
+      "description": "User profile and credentials"
+    },
+    "/botSettings/{uid}": {
+      "schema": "BotSettings",
+      "description": "User's bot configuration"
+    },
+    "/trades/{tradeId}": {
+      "schema": "Trade",
+      "description": "Trading history"
+    }
+  }
+}

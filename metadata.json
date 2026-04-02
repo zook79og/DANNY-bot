@@ -1,0 +1,5 @@
+{
+  "name": "Danny Bot",
+  "description": "AI-powered trading bot dashboard with MetaTrader 5 integration shell.",
+  "requestFramePermissions": []
+}
