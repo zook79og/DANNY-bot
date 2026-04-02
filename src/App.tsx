@@ -46,6 +46,7 @@ import {
   updateDoc
 } from "firebase/firestore";
 import { auth, db, handleFirestoreError, OperationType } from "./firebase";
+import { DannyAssistant } from "./components/DannyAssistant";
 
 // --- Types ---
 type Page = "dashboard" | "bot-control" | "trade-history" | "settings";
@@ -56,11 +57,15 @@ interface UserProfile {
   displayName: string;
   mt5Login?: string;
   mt5Server?: string;
-  balance?: number;
+  mt5PasswordEncrypted?: string;
+  balance?: number | null;
+  equity?: number;
+  isMt5Connected?: boolean;
 }
 
 interface Trade {
   id: string;
+  ticket?: number;
   symbol: string;
   type: "BUY" | "SELL";
   volume: number;
@@ -335,7 +340,7 @@ const Dashboard = ({ trades, botSettings, user, goldPrice, userProfile, notify, 
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-20">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Dashboard</h2>
         <div className="flex items-center gap-3">
@@ -372,6 +377,8 @@ const Dashboard = ({ trades, botSettings, user, goldPrice, userProfile, notify, 
           )}
         </div>
       </div>
+
+      <DannyAssistant userProfile={userProfile} trades={trades} />
 
       {hfmStatus !== "CONNECTED" && (
         <motion.div 
@@ -434,14 +441,27 @@ const Dashboard = ({ trades, botSettings, user, goldPrice, userProfile, notify, 
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-bold text-slate-900">Active Trades (HFM)</h3>
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20">
+                <Activity size={18} className="text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900">Live Trade Feed</h3>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    {isFetchingBalance ? "Syncing..." : `Updated ${lastSynced.toLocaleTimeString()}`}
+                  </span>
+                </div>
+              </div>
+            </div>
             <div className="flex gap-2">
               <button 
                 disabled={isPlacingTrade}
                 onClick={() => placeManualTrade("BUY")}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-blue-600/10 transition-all active:scale-95"
               >
                 {isPlacingTrade ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
                 BUY XAUUSD
@@ -449,53 +469,82 @@ const Dashboard = ({ trades, botSettings, user, goldPrice, userProfile, notify, 
               <button 
                 disabled={isPlacingTrade}
                 onClick={() => placeManualTrade("SELL")}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-red-600/10 transition-all active:scale-95"
               >
                 {isPlacingTrade ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} className="rotate-180" />}
                 SELL XAUUSD
               </button>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+          <div className="overflow-x-auto flex-1">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-slate-50/80 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-100">
                 <tr>
-                  <th className="px-6 py-4">Symbol</th>
+                  <th className="px-6 py-4">Symbol & Ticket</th>
                   <th className="px-6 py-4">Type</th>
                   <th className="px-6 py-4">Volume</th>
                   <th className="px-6 py-4">Open Price</th>
-                  <th className="px-6 py-4">Profit</th>
-                  <th className="px-6 py-4"></th>
+                  <th className="px-6 py-4 text-right">Floating P/L</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {activeTrades.length > 0 ? activeTrades.map((trade) => (
-                  <tr key={trade.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 font-bold text-slate-900">{trade.symbol}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded text-xs font-bold ${trade.type === 'BUY' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'}`}>
-                        {trade.type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">{trade.volume}</td>
-                    <td className="px-6 py-4 text-slate-600">{trade.openPrice.toFixed(4)}</td>
-                    <td className={`px-6 py-4 font-bold ${trade.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      ${trade.profit.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button className="p-2 hover:bg-slate-200 rounded-lg transition-colors">
-                        <ChevronRight size={16} className="text-slate-400" />
-                      </button>
-                    </td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic">No active trades on HFM account</td>
-                  </tr>
-                )}
+              <tbody className="divide-y divide-slate-50">
+                <AnimatePresence mode="popLayout">
+                  {activeTrades.length > 0 ? activeTrades.map((trade) => (
+                    <motion.tr 
+                      layout
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      key={trade.id} 
+                      className="hover:bg-blue-50/30 transition-colors group"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{trade.symbol}</span>
+                          <span className="text-[10px] text-slate-400 font-mono bg-slate-100 w-fit px-1.5 py-0.5 rounded mt-0.5">#{trade.ticket || "N/A"}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${trade.type === 'BUY' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
+                          {trade.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-slate-600">{trade.volume.toFixed(2)}</td>
+                      <td className="px-6 py-4 text-sm font-mono text-slate-500">{trade.openPrice.toFixed(2)}</td>
+                      <td className="px-6 py-4 text-right">
+                        <div className={`text-sm font-black flex flex-col items-end ${trade.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          <span>{trade.profit >= 0 ? '+' : ''}${Math.abs(trade.profit).toFixed(2)}</span>
+                          <span className="text-[9px] opacity-60 font-bold uppercase tracking-tighter">USD</span>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  )) : (
+                    <tr key="empty">
+                      <td colSpan={5} className="px-6 py-20 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
+                            <Activity size={24} />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-slate-900 font-bold">No active trades</p>
+                            <p className="text-slate-400 text-xs">Your HFM account has no open positions at the moment.</p>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </AnimatePresence>
               </tbody>
             </table>
           </div>
+          {activeTrades.length > 0 && (
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Floating P/L</span>
+              <span className={`text-sm font-black ${totalProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {totalProfit >= 0 ? '+' : '-'}${Math.abs(totalProfit).toFixed(2)}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -1146,7 +1195,29 @@ function AppContent() {
         const tradesData = await tradesRes.json();
         
         if (tradesData.status === "success") {
-          for (const mt5Trade of tradesData.trades) {
+          const mt5Trades = tradesData.trades || [];
+          const mt5Tickets = mt5Trades.map((t: any) => t.ticket);
+          
+          // Mark trades as CLOSED if they are no longer in MT5 open positions
+          const openTradesQuery = query(
+            collection(db, "trades"), 
+            where("uid", "==", user.uid),
+            where("status", "==", "OPEN")
+          );
+          const openTradesSnap = await getDocs(openTradesQuery);
+          
+          for (const tradeDoc of openTradesSnap.docs) {
+            const trade = tradeDoc.data();
+            if (trade.ticket && !mt5Tickets.includes(trade.ticket)) {
+              await updateDoc(doc(db, "trades", tradeDoc.id), {
+                status: "CLOSED",
+                updatedAt: serverTimestamp()
+              });
+            }
+          }
+
+          // Update or Add MT5 trades
+          for (const mt5Trade of mt5Trades) {
             const tradeQuery = query(
               collection(db, "trades"), 
               where("uid", "==", user.uid),
@@ -1179,15 +1250,18 @@ function AppContent() {
         setLastSynced(new Date());
       } catch (error) {
         console.error("MT5 Sync Failed:", error);
+        if (error instanceof TypeError && error.message === "Failed to fetch") {
+          console.warn("Network error: The backend server might be restarting or unreachable.");
+        }
       } finally {
         setIsFetchingBalance(false);
       }
     };
 
     syncAccountData();
-    const interval = setInterval(syncAccountData, 30000);
+    const interval = setInterval(syncAccountData, 10000); // Sync every 10 seconds for better real-time feel
     return () => clearInterval(interval);
-  }, [user, userProfile?.mt5Login, userProfile?.mt5Server]);
+  }, [user, userProfile?.isMt5Connected, userProfile?.mt5Login, userProfile?.mt5Server]);
 
   const handleLogin = async () => {
     try {

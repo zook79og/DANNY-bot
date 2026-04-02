@@ -42,7 +42,32 @@ async function startServer() {
       res.json(response.data);
     } catch (error) {
       console.warn("[MT5] Python engine unreachable, falling back to mock trades.");
-      res.json({ status: "success", trades: [] });
+      // Provide some mock trades for the preview environment
+      res.json({ 
+        status: "success", 
+        trades: [
+          {
+            ticket: 1234567,
+            symbol: "XAUUSD",
+            type: "BUY",
+            volume: 0.1,
+            price_open: 2035.50,
+            price_current: 2036.10,
+            profit: 6.00,
+            comment: "Mock Trade"
+          },
+          {
+            ticket: 1234568,
+            symbol: "XAUUSD",
+            type: "SELL",
+            volume: 0.05,
+            price_open: 2036.00,
+            price_current: 2035.80,
+            profit: 1.00,
+            comment: "Mock Trade"
+          }
+        ] 
+      });
     }
   });
 
@@ -92,16 +117,14 @@ async function startServer() {
     } catch (error) {
       console.warn("⚠️ [MT5] Python engine unreachable at " + PYTHON_ENGINE_URL);
       console.warn("👉 To see real balance, deploy to VPS and set PYTHON_ENGINE_URL in AIS Settings.");
-      setTimeout(() => {
-        res.json({ 
-          status: "success", 
-          balance: 10000.00, 
-          equity: 10000.00,
-          currency: "USD",
-          login: login || "49654745",
-          message: `Connected via AIS Mock Bridge (Simulating Account ${login || "49654745"})`
-        });
-      }, 1000);
+      res.json({ 
+        status: "success", 
+        balance: 10000.00, 
+        equity: 10000.00,
+        currency: "USD",
+        login: login || "49654745",
+        message: `Connected via AIS Mock Bridge (Simulating Account ${login || "49654745"})`
+      });
     }
   });
 
@@ -122,16 +145,14 @@ async function startServer() {
     } catch (error) {
       console.warn("[MT5] Python engine unreachable, falling back to mock for preview.");
       // Mock fallback for AIS preview environment
-      setTimeout(() => {
-        res.json({ 
-          status: "success", 
-          balance: 12450.80, 
-          equity: 12450.80,
-          server,
-          login,
-          message: "Connected via AIS Mock Bridge" 
-        });
-      }, 1000);
+      res.json({ 
+        status: "success", 
+        balance: 12450.80, 
+        equity: 12450.80,
+        server,
+        login,
+        message: "Connected via AIS Mock Bridge" 
+      });
     }
   });
 
@@ -151,20 +172,18 @@ async function startServer() {
       res.json(response.data);
     } catch (error) {
       console.warn("[TRADE] Python engine unreachable, falling back to mock.");
-      setTimeout(() => {
-        res.json({ 
-          success: true, 
-          message: "Order executed via AIS Mock Bridge",
-          trade: {
-            symbol,
-            type,
-            volume,
-            openPrice: price,
-            status: "OPEN",
-            timestamp: new Date().toISOString()
-          }
-        });
-      }, 1000);
+      res.json({ 
+        success: true, 
+        message: "Order executed via AIS Mock Bridge",
+        trade: {
+          symbol,
+          type,
+          volume,
+          openPrice: price,
+          status: "OPEN",
+          timestamp: new Date().toISOString()
+        }
+      });
     }
   });
 
